@@ -1,0 +1,32 @@
+workflows:
+  sistematich-ios-test:
+    name: SisteMatich iOS - Ilk Derleme
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    environment:
+      xcode: latest
+
+    scripts:
+      - name: Xcode surumunu kontrol et
+        script: |
+          xcodebuild -version
+
+      - name: Proje ve semalari kontrol et
+        script: |
+          xcodebuild -list -project HomeAssistant.xcodeproj
+
+      - name: iOS simulator derlemesi
+        script: |
+          set -o pipefail
+          xcodebuild build \
+            -project HomeAssistant.xcodeproj \
+            -scheme App-Debug \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+    artifacts:
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - /tmp/xcodebuild_logs/*.log
