@@ -14,19 +14,21 @@ workflows:
 
       - name: Proje ve semalari kontrol et
         script: |
-          xcodebuild -list -project HomeAssistant.xcodeproj
+          xcodebuild -list \
+            -project HomeAssistant.xcodeproj
 
       - name: iOS simulator derlemesi
         script: |
           set -o pipefail
+
           xcodebuild build \
             -project HomeAssistant.xcodeproj \
             -scheme App-Debug \
             -configuration Debug \
-            -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
             CODE_SIGNING_ALLOWED=NO
 
     artifacts:
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
-      - /tmp/xcodebuild_logs/*.log
+      - $CM_BUILD_DIR/DerivedData/Build/Products/**/*.app
+      - $CM_BUILD_DIR/DerivedData/Logs/Build/*.xcactivitylog
