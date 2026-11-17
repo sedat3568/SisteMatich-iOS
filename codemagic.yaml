@@ -7,33 +7,69 @@ workflows:
     environment:
       xcode: 27.2
 
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/org.swift.swiftpm
+        - $CM_BUILD_DIR/DerivedData/SourcePackages
+
     scripts:
       - name: Xcode surumunu kontrol et
         script: |
           set -e
+
+          echo "SisteMatich iOS - Build kontrolu"
+
           xcodebuild -version
           swift --version
 
-      - name: SwiftGen ve SwiftPM onbellegini temizle
+      - name: SwiftPM onbellegini hazirla
         script: |
           set -e
 
-          echo "SisteMatich SwiftGen cache temizligi"
+          echo "SisteMatich SwiftPM cache kontrolu"
 
-          rm -rf "$CM_BUILD_DIR/.build/swiftpm-cache"
-          rm -rf "$CM_BUILD_DIR/.build/repositories"
-          rm -rf "$CM_BUILD_DIR/.build/checkouts"
+          mkdir -p "$CM_BUILD_DIR/DerivedData/SourcePackages"
+          mkdir -p "$CM_BUILD_DIR/build_logs"
 
-          echo "Yerel paket onbellegi temizlendi"
+          echo "Cache dizinleri hazir"
 
       - name: Xcode paket bagimliliklarini coz
         script: |
           set -e
 
-          xcodebuild -resolvePackageDependencies \
-            -project HomeAssistant.xcodeproj \
-            -scheme App-Debug \
-            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages"
+          echo "SisteMatich paket bagimliliklari"
+
+          SUCCESS=0
+
+          for ATTEMPT in 1 2 3; do
+
+            echo "Paket cozme denemesi: $ATTEMPT"
+
+            if xcodebuild -resolvePackageDependencies \
+              -project HomeAssistant.xcodeproj \
+              -scheme App-Debug \
+              -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages"; then
+
+              SUCCESS=1
+              break
+            fi
+
+            if [ "$ATTEMPT" -lt 3 ]; then
+
+              echo "Paket cozme basarisiz. Yeniden deneniyor."
+
+              sleep 20
+
+            fi
+
+          done
+
+          if [ "$SUCCESS" -ne 1 ]; then
+            echo "HATA: Paket bagimliliklari cozulemedi"
+            exit 1
+          fi
+
+          echo "Paket bagimliliklari hazir"
 
       - name: Proje ve semalari kontrol et
         script: |
@@ -46,6 +82,8 @@ workflows:
         script: |
           set -e
           set -o pipefail
+
+          echo "SisteMatich iOS simulator build"
 
           mkdir -p "$CM_BUILD_DIR/build_logs"
 
@@ -68,7 +106,7 @@ workflows:
 
           APP_DIR="$CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator"
 
-          echo "iOS Simulator uygulamalari:"
+          echo "Simulator uygulamalari kontrol ediliyor"
 
           find "$APP_DIR" \
             -maxdepth 1 \
@@ -87,7 +125,7 @@ workflows:
             exit 1
           fi
 
-          echo "Simulator uygulama paketleri hazir"
+          echo "SisteMatich simulator paketleri hazir"
 
     artifacts:
       - $CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator/*.app
