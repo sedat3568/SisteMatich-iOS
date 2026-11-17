@@ -134,7 +134,8 @@ workflows:
             -type d \
             -print
 
+    
     artifacts:
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.app
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog
-      - $CM_BUILD_DIR/build_logs/*.log
+      - '$HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app'
+      - '$HOME/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog'
+      - '$CM_BUILD_DIR/build_logs/*.log'
