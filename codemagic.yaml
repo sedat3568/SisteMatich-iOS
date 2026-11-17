@@ -21,9 +21,7 @@ workflows:
           echo "SisteMatich SwiftGen cache temizligi"
 
           rm -rf "$CM_BUILD_DIR/.build/swiftpm-cache"
-
           rm -rf "$CM_BUILD_DIR/.build/repositories"
-
           rm -rf "$CM_BUILD_DIR/.build/checkouts"
 
           echo "Yerel paket onbellegi temizlendi"
@@ -44,8 +42,9 @@ workflows:
           xcodebuild -list \
             -project HomeAssistant.xcodeproj
 
-      - name: iOS simulator derlemesi
+      - name: SisteMatich iOS simulator derlemesi
         script: |
+          set -e
           set -o pipefail
 
           mkdir -p "$CM_BUILD_DIR/build_logs"
@@ -54,13 +53,43 @@ workflows:
             -project HomeAssistant.xcodeproj \
             -scheme App-Debug \
             -configuration Debug \
+            -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
             -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$CM_BUILD_DIR/build_logs/ios-build.log"
 
+      - name: SisteMatich App Preview paketini kontrol et
+        script: |
+          set -e
+
+          APP_DIR="$CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator"
+
+          echo "iOS Simulator uygulamalari:"
+
+          find "$APP_DIR" \
+            -maxdepth 1 \
+            -type d \
+            -name "*.app" \
+            -print
+
+          APP_COUNT=$(find "$APP_DIR" \
+            -maxdepth 1 \
+            -type d \
+            -name "*.app" \
+            | wc -l | tr -d ' ')
+
+          if [ "$APP_COUNT" -eq 0 ]; then
+            echo "HATA: iOS Simulator .app bulunamadi"
+            exit 1
+          fi
+
+          echo "Simulator uygulama paketleri hazir"
+
     artifacts:
-      - $CM_BUILD_DIR/DerivedData/Build/Products/**/*.app
+      - $CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator/*.app
       - $CM_BUILD_DIR/DerivedData/Logs/Build/*.xcactivitylog
       - $CM_BUILD_DIR/build_logs/*.log
