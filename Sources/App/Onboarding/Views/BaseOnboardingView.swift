@@ -1,17 +1,41 @@
 import Shared
 import SwiftUI
 
-/// A reusable screen scaffold for onboarding-style pages:
-/// - Illustration at the top
-/// - Big, centered title
-/// - One or two body paragraphs
-/// - Optional developer-injected content below the description
-/// - Optional list of selectable choices (radio-style)
-/// - Optional informational callout below choices
-/// - Bottom area with primary button and optional secondary button
+/// SisteMatich - Ortak iOS kurulum ekrani.
+/// Mevcut onboarding islevleri korunur.
+/// Dashboard bu arka plandan etkilenmez.
 public struct BaseOnboardingView<Illustration: View, Content: View>: View, KeyboardReadable {
+
     @State private var isKeyboardVisible = false
-    @Environment(\.disableOnboardingPrimaryAction) private var disablePrimaryAction
+
+    @Environment(\.disableOnboardingPrimaryAction)
+    private var disablePrimaryAction
+
+    // MARK: - SisteMatich Arka Plan
+
+    private var sistematichBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(
+                    red: 213.0 / 255.0,
+                    green: 244.0 / 255.0,
+                    blue: 242.0 / 255.0
+                ),
+                Color(
+                    red: 232.0 / 255.0,
+                    green: 221.0 / 255.0,
+                    blue: 238.0 / 255.0
+                ),
+                Color(
+                    red: 250.0 / 255.0,
+                    green: 217.0 / 255.0,
+                    blue: 217.0 / 255.0
+                )
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 
     // MARK: - Inputs
 
@@ -20,7 +44,6 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
     private let primaryDescription: String
     private let secondaryDescription: String?
 
-    // Optional injected content placed below the secondary description
     private let content: (() -> Content)?
 
     private let primaryActionTitle: String
@@ -31,14 +54,17 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
     private let secondaryAction: (() -> Void)?
     private let secondaryActionIdentifier: String?
 
-    // Layout tuning
+    // MARK: - Layout
+
     private let verticalSpacing: CGFloat
-    private let maxContentWidth: CGFloat = Sizes.maxWidthForLargerScreens
+
+    private let maxContentWidth: CGFloat =
+        Sizes.maxWidthForLargerScreens
+
     private let bottomAnchor = "bottom-anchor"
 
-    // MARK: - Inits
+    // MARK: - Initializer With Custom Content
 
-    /// Iinitializer that accepts custom content below the descriptions.
     public init(
         @ViewBuilder illustration: @escaping () -> Illustration,
         title: String,
@@ -68,7 +94,8 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
         self.verticalSpacing = verticalSpacing
     }
 
-    /// No custom content initializer.
+    // MARK: - Initializer Without Custom Content
+
     public init(
         @ViewBuilder illustration: @escaping () -> Illustration,
         title: String,
@@ -97,32 +124,56 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
         self.verticalSpacing = verticalSpacing
     }
 
-    // MARK: - Body
+    // MARK: - Main View
 
     public var body: some View {
         ScrollView {
             ScrollViewReader { proxy in
                 VStack(spacing: verticalSpacing) {
+
+                    // MARK: Illustration
+
                     Group {
                         if let image = illustration() as? Image {
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(height: 130)
-                                .frame(maxWidth: .infinity, alignment: .center)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .center
+                                )
                         } else {
                             illustration()
-                                .frame(maxWidth: .infinity, alignment: .center)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    alignment: .center
+                                )
                         }
                     }
-                    .padding(.top, DesignSystem.Spaces.two)
+                    .padding(
+                        .top,
+                        DesignSystem.Spaces.two
+                    )
+
+                    // MARK: Title
 
                     Text(title)
-                        .font(DesignSystem.Font.largeTitle.bold())
+                        .font(
+                            DesignSystem.Font.largeTitle.bold()
+                        )
+                        .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, DesignSystem.Spaces.two)
+                        .padding(
+                            .horizontal,
+                            DesignSystem.Spaces.two
+                        )
 
-                    VStack(spacing: DesignSystem.Spaces.two) {
+                    // MARK: Descriptions
+
+                    VStack(
+                        spacing: DesignSystem.Spaces.two
+                    ) {
                         Text(primaryDescription)
                             .font(DesignSystem.Font.body)
                             .foregroundStyle(.secondary)
@@ -135,20 +186,32 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
                                 .multilineTextAlignment(.center)
                         }
 
+                        // Existing custom content
+
                         if let content {
                             content()
                         }
                     }
-                    .padding(.horizontal, DesignSystem.Spaces.two)
+                    .padding(
+                        .horizontal,
+                        DesignSystem.Spaces.two
+                    )
 
-                    Spacer(minLength: DesignSystem.Spaces.four)
+                    Spacer(
+                        minLength: DesignSystem.Spaces.four
+                    )
 
-                    // Bottom anchor to scroll when keyboard appears
+                    // Keyboard scrolling anchor
+
                     Text("")
                         .frame(height: 100)
                         .id(bottomAnchor)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
                 .frame(maxWidth: maxContentWidth)
                 .onChange(of: isKeyboardVisible) { newValue in
                     if newValue {
@@ -157,54 +220,92 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity
+        )
+
+        // MARK: Bottom Actions
+
         .safeAreaInset(edge: .bottom) {
             bottomActions
         }
-        .background(Color(uiColor: .systemBackground))
+
+        // MARK: SisteMatich Pastel Background
+
+        .background {
+            sistematichBackground
+                .ignoresSafeArea()
+        }
+
+        // MARK: Keyboard Monitoring
+
         .onReceive(keyboardPublisher) { newIsKeyboardVisible in
             isKeyboardVisible = newIsKeyboardVisible
         }
     }
 
-    // MARK: - Bottom actions
+    // MARK: - Bottom Buttons
 
     @ViewBuilder
     private var bottomActions: some View {
-        VStack(spacing: DesignSystem.Spaces.one) {
+        VStack(
+            spacing: DesignSystem.Spaces.one
+        ) {
+
+            // Primary button
+
             Button(action: primaryAction) {
                 Text(primaryActionTitle)
             }
             .buttonStyle(.primaryButton)
             .disabled(disablePrimaryAction)
-            .accessibilityIdentifier(primaryActionIdentifier ?? "")
+            .accessibilityIdentifier(
+                primaryActionIdentifier ?? ""
+            )
 
-            if let secondaryActionTitle, let secondaryAction {
+            // Secondary button
+
+            if let secondaryActionTitle,
+               let secondaryAction {
+
                 Button(action: secondaryAction) {
                     Text(secondaryActionTitle)
                 }
                 .buttonStyle(.secondaryButton)
                 .tint(Color.haPrimary)
-                .accessibilityIdentifier(secondaryActionIdentifier ?? "")
+                .accessibilityIdentifier(
+                    secondaryActionIdentifier ?? ""
+                )
             }
         }
-        .padding(.bottom, Current.isCatalyst ? DesignSystem.Spaces.two : DesignSystem.Spaces.one)
-        .frame(maxWidth: Sizes.maxWidthForLargerScreens)
-        .padding([.horizontal, .top], DesignSystem.Spaces.two)
-        .background(Color(uiColor: .systemBackground).opacity(0.95))
+        .padding(
+            .bottom,
+            Current.isCatalyst
+                ? DesignSystem.Spaces.two
+                : DesignSystem.Spaces.one
+        )
+        .frame(
+            maxWidth: Sizes.maxWidthForLargerScreens
+        )
+        .padding(
+            [.horizontal, .top],
+            DesignSystem.Spaces.two
+        )
+        .background(Color.clear)
     }
 }
 
 // MARK: - Previews
 
-#Preview("Location permission example (simple)") {
+#Preview("SisteMatich - Location") {
     NavigationView {
         BaseOnboardingView(
             illustration: {
                 Image(.Onboarding.world)
             },
             title: "Use this device's location for automations",
-            primaryDescription: "Location sharing enables powerful automations, such as turning off the heating when you leave home. This option shares the device’s location only with your Home Assistant system.",
+            primaryDescription: "Location sharing enables powerful automations, such as turning off the heating when you leave home. This option shares the device's location only with your Home Assistant system.",
             secondaryDescription: "This data stays in your home and is never sent to third parties. It also helps strengthen the security of your connection to Home Assistant.",
             primaryActionTitle: "Share my location",
             primaryAction: {},
@@ -215,7 +316,7 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
     }
 }
 
-#Preview("With injected content") {
+#Preview("SisteMatich - Custom Content") {
     NavigationView {
         BaseOnboardingView(
             illustration: {
@@ -225,19 +326,29 @@ public struct BaseOnboardingView<Illustration: View, Content: View>: View, Keybo
             primaryDescription: "Location sharing enables powerful automations.",
             secondaryDescription: "This data stays in your home and is never sent to third parties.",
             content: {
-                VStack(spacing: DesignSystem.Spaces.one) {
+                VStack(
+                    spacing: DesignSystem.Spaces.one
+                ) {
                     Toggle(isOn: .constant(true)) {
                         Text("Also share precise location")
                     }
                     .toggleStyle(.switch)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
 
                     Text("You can change this later in Settings.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: .leading
+                        )
                 }
-                .frame(maxWidth: DesignSystem.List.rowMaxWidth)
+                .frame(
+                    maxWidth: DesignSystem.List.rowMaxWidth
+                )
             },
             primaryActionTitle: "Share my location",
             primaryAction: {},
