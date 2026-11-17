@@ -16,9 +16,6 @@ workflows:
       - name: Xcode surumunu kontrol et
         script: |
           set -e
-
-          echo "SisteMatich iOS - Build kontrolu"
-
           xcodebuild -version
           swift --version
 
@@ -37,31 +34,23 @@ workflows:
         script: |
           set -e
 
-          echo "SisteMatich paket bagimliliklari"
-
           SUCCESS=0
 
           for ATTEMPT in 1 2 3; do
-
             echo "Paket cozme denemesi: $ATTEMPT"
 
             if xcodebuild -resolvePackageDependencies \
               -project HomeAssistant.xcodeproj \
               -scheme App-Debug \
               -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages"; then
-
               SUCCESS=1
               break
             fi
 
             if [ "$ATTEMPT" -lt 3 ]; then
-
-              echo "Paket cozme basarisiz. Yeniden deneniyor."
-
+              echo "Tekrar deneniyor..."
               sleep 20
-
             fi
-
           done
 
           if [ "$SUCCESS" -ne 1 ]; then
@@ -83,15 +72,14 @@ workflows:
           set -e
           set -o pipefail
 
-          echo "SisteMatich iOS simulator build"
-
           mkdir -p "$CM_BUILD_DIR/build_logs"
+
+          echo "SisteMatich iOS Simulator Build"
 
           xcodebuild build \
             -project HomeAssistant.xcodeproj \
             -scheme App-Debug \
             -configuration Debug \
-            -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
             -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages" \
@@ -106,7 +94,7 @@ workflows:
 
           APP_DIR="$CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator"
 
-          echo "Simulator uygulamalari kontrol ediliyor"
+          echo "Simulator paketleri kontrol ediliyor"
 
           find "$APP_DIR" \
             -maxdepth 1 \
@@ -121,11 +109,11 @@ workflows:
             | wc -l | tr -d ' ')
 
           if [ "$APP_COUNT" -eq 0 ]; then
-            echo "HATA: iOS Simulator .app bulunamadi"
+            echo "HATA: iOS Simulator uygulamasi bulunamadi"
             exit 1
           fi
 
-          echo "SisteMatich simulator paketleri hazir"
+          echo "SisteMatich iOS Simulator paketi hazir"
 
     artifacts:
       - $CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator/*.app
