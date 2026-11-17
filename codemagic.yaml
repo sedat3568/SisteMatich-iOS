@@ -10,10 +10,37 @@ workflows:
     scripts:
       - name: Xcode surumunu kontrol et
         script: |
+          set -e
           xcodebuild -version
+          swift --version
+
+      - name: SwiftGen ve SwiftPM onbellegini temizle
+        script: |
+          set -e
+
+          echo "SisteMatich SwiftGen cache temizligi"
+
+          rm -rf "$CM_BUILD_DIR/.build/swiftpm-cache"
+
+          rm -rf "$CM_BUILD_DIR/.build/repositories"
+
+          rm -rf "$CM_BUILD_DIR/.build/checkouts"
+
+          echo "Yerel paket onbellegi temizlendi"
+
+      - name: Xcode paket bagimliliklarini coz
+        script: |
+          set -e
+
+          xcodebuild -resolvePackageDependencies \
+            -project HomeAssistant.xcodeproj \
+            -scheme App-Debug \
+            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages"
 
       - name: Proje ve semalari kontrol et
         script: |
+          set -e
+
           xcodebuild -list \
             -project HomeAssistant.xcodeproj
 
@@ -21,14 +48,19 @@ workflows:
         script: |
           set -o pipefail
 
+          mkdir -p "$CM_BUILD_DIR/build_logs"
+
           xcodebuild build \
             -project HomeAssistant.xcodeproj \
             -scheme App-Debug \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO
+            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$CM_BUILD_DIR/build_logs/ios-build.log"
 
     artifacts:
       - $CM_BUILD_DIR/DerivedData/Build/Products/**/*.app
       - $CM_BUILD_DIR/DerivedData/Logs/Build/*.xcactivitylog
+      - $CM_BUILD_DIR/build_logs/*.log
