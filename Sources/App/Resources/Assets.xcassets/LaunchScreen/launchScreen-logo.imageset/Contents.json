@@ -1,15 +1,12 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "home-assistant-logomark-color-on-light.pdf",
-      "idiom" : "universal"
+      "filename": "SisteMatich-Splash-Original.png",
+      "idiom": "universal"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
-  },
-  "properties" : {
-    "preserves-vector-representation" : true
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }
