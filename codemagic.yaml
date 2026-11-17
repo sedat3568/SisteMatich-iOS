@@ -10,12 +10,15 @@ workflows:
     cache:
       cache_paths:
         - $HOME/Library/Caches/org.swift.swiftpm
-        - $CM_BUILD_DIR/DerivedData/SourcePackages
+        - $HOME/Library/Developer/Xcode/DerivedData/SourcePackages
 
     scripts:
       - name: Xcode surumunu kontrol et
         script: |
           set -e
+
+          echo "SisteMatich iOS - Xcode kontrolu"
+
           xcodebuild -version
           swift --version
 
@@ -23,34 +26,38 @@ workflows:
         script: |
           set -e
 
-          echo "SisteMatich SwiftPM cache kontrolu"
+          echo "SisteMatich SwiftPM onbellegi"
 
-          mkdir -p "$CM_BUILD_DIR/DerivedData/SourcePackages"
+          mkdir -p "$HOME/Library/Caches/org.swift.swiftpm"
           mkdir -p "$CM_BUILD_DIR/build_logs"
 
-          echo "Cache dizinleri hazir"
+          echo "Onbellek hazir"
 
       - name: Xcode paket bagimliliklarini coz
         script: |
           set -e
 
+          echo "SisteMatich paket bagimliliklari"
+
           SUCCESS=0
 
           for ATTEMPT in 1 2 3; do
+
             echo "Paket cozme denemesi: $ATTEMPT"
 
             if xcodebuild -resolvePackageDependencies \
               -project HomeAssistant.xcodeproj \
-              -scheme App-Debug \
-              -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages"; then
+              -scheme App-Debug; then
+
               SUCCESS=1
               break
             fi
 
             if [ "$ATTEMPT" -lt 3 ]; then
-              echo "Tekrar deneniyor..."
+              echo "Paket bagimliliklari yeniden deneniyor"
               sleep 20
             fi
+
           done
 
           if [ "$SUCCESS" -ne 1 ]; then
@@ -75,14 +82,13 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/build_logs"
 
           echo "SisteMatich iOS Simulator Build"
+          echo "Xcode varsayilan DerivedData kullaniliyor"
 
           xcodebuild build \
             -project HomeAssistant.xcodeproj \
             -scheme App-Debug \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
-            -clonedSourcePackagesDirPath "$CM_BUILD_DIR/DerivedData/SourcePackages" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -92,30 +98,43 @@ workflows:
         script: |
           set -e
 
-          APP_DIR="$CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator"
+          echo "SisteMatich iOS App Preview kontrolu"
 
-          echo "Simulator paketleri kontrol ediliyor"
+          DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
 
-          find "$APP_DIR" \
-            -maxdepth 1 \
+          APP_COUNT=$(find "$DERIVED_DATA" \
+            -path "*/Build/Products/Debug-iphonesimulator/*.app" \
             -type d \
-            -name "*.app" \
+            -print | wc -l | tr -d ' ')
+
+          find "$DERIVED_DATA" \
+            -path "*/Build/Products/Debug-iphonesimulator/*.app" \
+            -type d \
             -print
 
-          APP_COUNT=$(find "$APP_DIR" \
-            -maxdepth 1 \
-            -type d \
-            -name "*.app" \
-            | wc -l | tr -d ' ')
-
           if [ "$APP_COUNT" -eq 0 ]; then
-            echo "HATA: iOS Simulator uygulamasi bulunamadi"
+            echo "HATA: Simulator .app bulunamadi"
             exit 1
           fi
 
-          echo "SisteMatich iOS Simulator paketi hazir"
+          echo "SisteMatich iOS .app paketi hazir"
+
+      - name: SisteMatich derleme sonucunu kontrol et
+        script: |
+          set -e
+
+          echo "SisteMatich iOS build tamamlandi"
+
+          echo "Varsayilan DerivedData yolu:"
+          echo "$HOME/Library/Developer/Xcode/DerivedData"
+
+          echo "App Preview icin .app dosyalari:"
+          find "$HOME/Library/Developer/Xcode/DerivedData" \
+            -path "*/Build/Products/Debug-iphonesimulator/*.app" \
+            -type d \
+            -print
 
     artifacts:
-      - $CM_BUILD_DIR/DerivedData/Build/Products/Debug-iphonesimulator/*.app
-      - $CM_BUILD_DIR/DerivedData/Logs/Build/*.xcactivitylog
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog
       - $CM_BUILD_DIR/build_logs/*.log
