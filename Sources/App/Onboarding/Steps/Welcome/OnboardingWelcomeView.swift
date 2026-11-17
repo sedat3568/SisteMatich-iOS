@@ -80,7 +80,7 @@ struct OnboardingWelcomeView: View {
     // MARK: - Main View
 
     var body: some View {
-        GeometryReader { proxy in {
+        GeometryReader { proxy in
             ScrollView {
                 VStack(spacing: 0) {
 
@@ -123,7 +123,7 @@ struct OnboardingWelcomeView: View {
                     layoutDirection: layoutDirection
                 )
             )
-        }}
+        }
         .sheet(isPresented: $showStore) {
             SafariWebView(url: storeURL)
         }
