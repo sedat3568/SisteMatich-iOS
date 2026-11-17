@@ -22,7 +22,7 @@
 		</dict>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>$(PRODUCT_NAME)</string>
+    <string>SisteMatich</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
