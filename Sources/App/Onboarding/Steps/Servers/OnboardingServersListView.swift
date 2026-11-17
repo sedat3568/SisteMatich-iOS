@@ -32,6 +32,21 @@ struct OnboardingServersListView: View {
     @State private var headerHeight: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
 
+    // SisteMatich - ortak pastel onboarding arka plani.
+    private var sistematichBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 213.0 / 255.0, green: 244.0 / 255.0, blue: 242.0 / 255.0),
+                Color(red: 232.0 / 255.0, green: 221.0 / 255.0, blue: 238.0 / 255.0),
+                Color(red: 250.0 / 255.0, green: 217.0 / 255.0, blue: 217.0 / 255.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private let sistematichServerURL = URL(string: "https://panel.sistematich.com")!
+
     private let prefillURL: URL?
     private let onboardingStyle: OnboardingStyle
 
@@ -82,16 +97,19 @@ struct OnboardingServersListView: View {
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .background {
+            sistematichBackground.ignoresSafeArea()
+        }
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { height in
             contentHeight = height
         }
-        .navigationTitle(isCompactHeight ? L10n.Onboarding.Servers.title : "")
+        .navigationTitle(isCompactHeight ? "Cihaz Aranıyor" : "")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom, content: {
             if autoConnectInstance == nil, !shouldShowInvitation {
-                manualInputButton
+                serverActionButtons
             }
         })
         .toolbar(content: {
@@ -219,6 +237,7 @@ struct OnboardingServersListView: View {
                     .frame(minHeight: proxy.size.height)
             }
         }
+        .background { sistematichBackground.ignoresSafeArea() }
     }
 
     private func hideCenterLoader() {
@@ -242,7 +261,7 @@ struct OnboardingServersListView: View {
                 pendingAutoConnectInstance = instance
                 isAutoConnectPresented = false
             } label: {
-                Text(L10n.Onboarding.Servers.AutoConnect.button)
+                Text("Bağlan")
             }
             .buttonStyle(.primaryButton)
         }
@@ -367,7 +386,7 @@ struct OnboardingServersListView: View {
 
     private var centerLoader: some View {
         SearchingServersAnimationView(
-            text: L10n.Onboarding.Servers.Search.Loader.text,
+            text: "SisteMatich Sunucuları Aranıyor",
             availableHeight: loaderAvailableHeight
         )
         .padding(.horizontal)
@@ -438,7 +457,7 @@ struct OnboardingServersListView: View {
     }
 
     private var headerView: some View {
-        Text(L10n.Onboarding.Servers.title)
+        Text("Cihaz Aranıyor")
             .font(DesignSystem.Font.largeTitle.bold())
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -469,6 +488,37 @@ struct OnboardingServersListView: View {
         .frame(maxWidth: DesignSystem.List.rowMaxWidth)
     }
 
+    // Yerel kesifin yaninda sabit SisteMatich sunucusuna istege bagli baglanti.
+    // Dogrudan mevcut presenter/auth akisina girer; parola kaydetmez.
+    private var serverActionButtons: some View {
+        VStack(spacing: 10) {
+            Button {
+                cancelAutoConnect()
+                hideCenterLoader()
+                viewModel.selectInstance(
+                    .init(manualURL: sistematichServerURL),
+                    presenter: presenter
+                )
+            } label: {
+                VStack(spacing: 3) {
+                    Text("SisteMatich Sunucusuna Bağlan")
+                        .fontWeight(.semibold)
+                    Text("panel.sistematich.com")
+                        .font(.footnote)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.primaryButton)
+            .disabled(viewModel.currentlyInstanceLoading != nil || viewModel.manualInputLoading)
+
+            manualInputButton
+        }
+        .frame(maxWidth: Sizes.maxWidthForLargerScreens)
+        .padding(.horizontal, DesignSystem.Spaces.two)
+        .padding(.top, DesignSystem.Spaces.one)
+        .background(Color.clear)
+    }
+
     private var manualInputButton: some View {
         Button(action: {
             if Current.isCatalyst {
@@ -480,7 +530,7 @@ struct OnboardingServersListView: View {
                 showManualInput = true
             }
         }) {
-            Text(L10n.Onboarding.Scanning.Manual.Button.title)
+            Text("Adresi manuel olarak gir")
         }
         .buttonStyle(.glassButton)
         .accessibilityIdentifier(AccessibilityIdentifier.onboardingServersManualEntry.rawValue)
