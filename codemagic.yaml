@@ -1,3 +1,4 @@
+
 workflows:
   sistematich-ios-test:
     name: SisteMatich iOS - Ilk Derleme
@@ -17,7 +18,9 @@ workflows:
         script: |
           set -e
 
+          echo "========================================"
           echo "SisteMatich iOS - Xcode kontrolu"
+          echo "========================================"
 
           xcodebuild -version
           swift --version
@@ -81,7 +84,10 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/build_logs"
 
+          echo "========================================"
           echo "SisteMatich iOS Simulator Build"
+          echo "========================================"
+
           echo "Xcode varsayilan DerivedData kullaniliyor"
 
           xcodebuild build \
@@ -94,11 +100,139 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$CM_BUILD_DIR/build_logs/ios-build.log"
 
+      - name: SisteMatich calistirilabilir dosya analizi
+        script: |
+          set -e
+          set -o pipefail
+
+          mkdir -p "$CM_BUILD_DIR/build_logs"
+
+          LOG_FILE="$CM_BUILD_DIR/build_logs/executable-analysis.log"
+
+          {
+            echo "========================================"
+            echo "SisteMatich iOS Executable Analysis"
+            echo "========================================"
+
+            DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
+
+            APP_PATH=$(find "$DERIVED_DATA" \
+              -path "*/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app" \
+              -type d \
+              -print -quit)
+
+            if [ -z "$APP_PATH" ]; then
+              echo "HATA: Ana iOS uygulamasi bulunamadi"
+              exit 1
+            fi
+
+            echo ""
+            echo "APP PATH:"
+            echo "$APP_PATH"
+
+            echo ""
+            echo "INFO.PLIST:"
+            ls -lh "$APP_PATH/Info.plist"
+
+            EXECUTABLE=$(/usr/libexec/PlistBuddy \
+              -c "Print CFBundleExecutable" \
+              "$APP_PATH/Info.plist")
+
+            echo ""
+            echo "EXECUTABLE NAME:"
+            echo "$EXECUTABLE"
+
+            EXECUTABLE_PATH="$APP_PATH/$EXECUTABLE"
+
+            echo ""
+            echo "EXECUTABLE PATH:"
+            echo "$EXECUTABLE_PATH"
+
+            if [ ! -f "$EXECUTABLE_PATH" ]; then
+              echo "HATA: Executable dosyasi bulunamadi"
+              exit 1
+            fi
+
+            echo ""
+            echo "EXECUTABLE BULUNDU"
+
+            ls -lh "$EXECUTABLE_PATH"
+
+            echo ""
+            echo "FILE TYPE:"
+            file "$EXECUTABLE_PATH"
+
+            echo ""
+            echo "CPU ARCHITECTURE:"
+            lipo -info "$EXECUTABLE_PATH"
+
+            echo ""
+            echo "EXECUTABLE PERMISSIONS:"
+            ls -l "$EXECUTABLE_PATH"
+
+            if [ -x "$EXECUTABLE_PATH" ]; then
+              echo "Executable izni mevcut"
+            else
+              echo "UYARI: Executable izni bulunamadi"
+            fi
+
+            echo ""
+            echo "DEBUG DYLIB DOSYALARI:"
+
+            find "$APP_PATH" \
+              -maxdepth 1 \
+              -name "*.debug.dylib" \
+              -print
+
+            echo ""
+            echo "DEBUG DYLIB MIMARISI:"
+
+            find "$APP_PATH" \
+              -maxdepth 1 \
+              -name "*.debug.dylib" \
+              -type f \
+              -exec file {} \;
+
+            echo ""
+            echo "SUPPORTED PLATFORMS:"
+
+            /usr/libexec/PlistBuddy \
+              -c "Print CFBundleSupportedPlatforms" \
+              "$APP_PATH/Info.plist"
+
+            echo ""
+            echo "MINIMUM IOS VERSION:"
+
+            /usr/libexec/PlistBuddy \
+              -c "Print MinimumOSVersion" \
+              "$APP_PATH/Info.plist"
+
+            echo ""
+            echo "BUNDLE IDENTIFIER:"
+
+            /usr/libexec/PlistBuddy \
+              -c "Print CFBundleIdentifier" \
+              "$APP_PATH/Info.plist"
+
+            echo ""
+            echo "APP DIRECTORY CONTENTS:"
+
+            ls -la "$APP_PATH" | head -80
+
+            echo ""
+            echo "========================================"
+            echo "SisteMatich Executable Analysis Complete"
+            echo "========================================"
+
+          } 2>&1 | tee "$LOG_FILE"
+
       - name: SisteMatich App Preview paketini kontrol et
         script: |
           set -e
 
+          echo "========================================"
           echo "SisteMatich iOS App Preview kontrolu"
+          echo "========================================"
 
           DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
 
@@ -123,18 +257,28 @@ workflows:
         script: |
           set -e
 
-          echo "SisteMatich iOS build tamamlandi"
+          echo "========================================"
+          echo "SisteMatich iOS Build Complete"
+          echo "========================================"
 
           echo "Varsayilan DerivedData yolu:"
           echo "$HOME/Library/Developer/Xcode/DerivedData"
 
+          echo ""
           echo "App Preview icin .app dosyalari:"
+
           find "$HOME/Library/Developer/Xcode/DerivedData" \
             -path "*/Build/Products/Debug-iphonesimulator/*.app" \
             -type d \
             -print
 
-    
+          echo ""
+          echo "Tanilama raporu:"
+          echo "$CM_BUILD_DIR/build_logs/executable-analysis.log"
+
+          echo ""
+          echo "SisteMatich iOS build tamamlandi"
+
     artifacts:
       - '$HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app'
       - '$HOME/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog'
