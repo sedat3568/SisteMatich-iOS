@@ -1,79 +1,331 @@
 
+workflows:
+  sistematich-ios-test:
+    name: SisteMatich iOS - Ilk Derleme
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    environment:
+      xcode: 27.2
+
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/org.swift.swiftpm
+        - $HOME/Library/Developer/Xcode/DerivedData/SourcePackages
+
+    scripts:
+      - name: Xcode surumunu kontrol et
+        script: |
+          set -e
+          xcodebuild -version
+          swift --version
+          mkdir -p "$CM_BUILD_DIR/build_logs"
+
+      - name: SwiftPM onbellegini hazirla
+        script: |
+          set -e
+          mkdir -p "$HOME/Library/Caches/org.swift.swiftpm"
+          mkdir -p "$HOME/Library/Developer/Xcode/DerivedData/SourcePackages"
+
+      - name: Xcode paket bagimliliklarini coz
+        script: |
+          set -o pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project HomeAssistant.xcodeproj \
+            -scheme App-Debug \
+            2>&1 | tee "$CM_BUILD_DIR/build_logs/package-resolution.log"
+
+      - name: Proje ve semalari kontrol et
+        script: |
+          set -o pipefail
+          xcodebuild -list -project HomeAssistant.xcodeproj \
+            2>&1 | tee "$CM_BUILD_DIR/build_logs/project-schemes.log"
+
+      - name: SisteMatich iOS simulator derlemesi
+        script: |
+          set -o pipefail
+          xcodebuild build \
+            -project HomeAssistant.xcodeproj \
+            -scheme App-Debug \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$CM_BUILD_DIR/build_logs/ios-build.log"
+
+      - name: SisteMatich uygulama dosyasini kontrol et
+        script: |
+          set -e
+          APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
+            -path '*/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app' \
+            -type d -print -quit)
+
+          if [ -z "$APP_PATH" ]; then
+            echo 'HATA: Simulator .app bulunamadi'
+            exit 1
+          fi
+
+          echo "APP_PATH=$APP_PATH"
+
+          /usr/libexec/PlistBuddy \
+            -c 'Print :CFBundleIdentifier' \
+            "$APP_PATH/Info.plist"
+
+          EXECUTABLE=$(/usr/libexec/PlistBuddy \
+            -c 'Print :CFBundleExecutable' \
+            "$APP_PATH/Info.plist")
+
+          test -f "$APP_PATH/$EXECUTABLE"
+          test -x "$APP_PATH/$EXECUTABLE"
+
+          file "$APP_PATH/$EXECUTABLE"
+
+          echo "$APP_PATH" > "$CM_BUILD_DIR/build_logs/app-path.txt"
+
+      - name: SisteMatich Apple Watch Companion ID duzelt
+        script: |
+          set -e
+
+          APP_PATH=$(cat "$CM_BUILD_DIR/build_logs/app-path.txt")
+          MAIN_ID=$(/usr/libexec/PlistBuddy \
+            -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")
+
+          echo "iPhone Bundle ID: $MAIN_ID"
+
+          FOUND=0
+
+          if [ -d "$APP_PATH/Watch" ]; then
+            while IFS= read -r -d '' WATCH_PLIST; do
+              FOUND=1
+
+              echo "Watch plist: $WATCH_PLIST"
+
+              /usr/libexec/PlistBuddy \
+                -c "Set :WKCompanionAppBundleIdentifier $MAIN_ID" \
+                "$WATCH_PLIST" \
+                || /usr/libexec/PlistBuddy \
+                -c "Add :WKCompanionAppBundleIdentifier string $MAIN_ID" \
+                "$WATCH_PLIST"
+
+              CHECK_ID=$(/usr/libexec/PlistBuddy \
+                -c 'Print :WKCompanionAppBundleIdentifier' \
+                "$WATCH_PLIST")
+
+              test "$CHECK_ID" = "$MAIN_ID"
+
+              echo "Watch Companion ID: $CHECK_ID"
+            done < <(find "$APP_PATH/Watch" \
+              -name Info.plist \
+              -path '*.app/Info.plist' \
+              -print0)
+          fi
+
+          if [ "$FOUND" -eq 0 ]; then
+            echo 'UYARI: Watch uygulamasi bulunamadi'
+          fi
+
       - name: SisteMatich App Group yetki analizi
         script: |
           set -e
 
-          mkdir -p "$CM_BUILD_DIR/build_logs"
-
+          APP_PATH=$(cat "$CM_BUILD_DIR/build_logs/app-path.txt")
           LOG_FILE="$CM_BUILD_DIR/build_logs/app-group-analysis.log"
 
           {
-            echo "========================================"
-            echo "SisteMatich App Group Diagnostics"
-            echo "========================================"
+            echo '=== SisteMatich App Group diagnostics ==='
+            echo "App: $APP_PATH"
 
-            DERIVED_DATA="$HOME/Library/Developer/Xcode/DerivedData"
-
-            APP_PATH=$(find "$DERIVED_DATA" \
-              -path "*/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app" \
-              -type d -print -quit)
-
-            if [ -z "$APP_PATH" ]; then
-              echo "HATA: iOS uygulamasi bulunamadi"
-              exit 1
-            fi
-
-            echo "APP PATH: $APP_PATH"
-
-            echo ""
-            echo "1. Bundle Identifier"
-
+            echo '--- Main bundle ID ---'
             /usr/libexec/PlistBuddy \
-              -c "Print :CFBundleIdentifier" \
+              -c 'Print :CFBundleIdentifier' \
               "$APP_PATH/Info.plist"
 
-            echo ""
-            echo "2. Code Signing Status"
-
+            echo '--- Signing information ---'
             codesign -dv "$APP_PATH" 2>&1 || true
 
-            echo ""
-            echo "3. Signed Entitlements"
-
+            echo '--- Actual signed entitlements ---'
             codesign -d --entitlements :- \
               "$APP_PATH" 2>&1 || true
 
-            echo ""
-            echo "4. Generated Xcent Files"
+            echo '--- Signature verification ---'
+            codesign --verify --verbose=2 \
+              "$APP_PATH" 2>&1 || true
 
-            find "$DERIVED_DATA" \
-              -name "*.xcent" \
-              -type f \
-              -print
+            echo '--- Generated .xcent files (first 30) ---'
+            find "$HOME/Library/Developer/Xcode/DerivedData" \
+              -name '*.xcent' \
+              -type f | head -30 || true
 
-            echo ""
-            echo "5. App Group Build Settings"
+            echo '--- Source App entitlements ---'
+            plutil -p \
+              Configuration/Entitlements/App-ios.entitlements || true
 
+            echo '--- Source Extension entitlements ---'
+            plutil -p \
+              Configuration/Entitlements/Extension-ios.entitlements || true
+
+            echo '--- Source Watch entitlements ---'
+            plutil -p \
+              Configuration/Entitlements/WatchApp.entitlements || true
+
+            echo '--- Effective build settings ---'
             xcodebuild -showBuildSettings \
               -project HomeAssistant.xcodeproj \
               -scheme App-Debug \
               -configuration Debug \
               -destination 'generic/platform=iOS Simulator' \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
               2>/dev/null | grep -E \
-              "CODE_SIGN_ENTITLEMENTS|CODE_SIGNING_ALLOWED|PRODUCT_BUNDLE_IDENTIFIER|BUNDLE_ID_PREFIX|BUNDLE_ID_SUFFIX" \
+              'CODE_SIGN_ENTITLEMENTS =|CODE_SIGNING_ALLOWED =|PRODUCT_BUNDLE_IDENTIFIER =|BUNDLE_ID_PREFIX =|BUNDLE_ID_SUFFIX =' \
               || true
 
-            echo ""
-            echo "6. Entitlements Source"
-
-            if [ -f "Configuration/Entitlements/App-ios.entitlements" ]; then
-              plutil -p \
-                Configuration/Entitlements/App-ios.entitlements
-            fi
-
-            echo ""
-            echo "========================================"
-            echo "SisteMatich App Group Analysis Complete"
-            echo "========================================"
+            echo '=== Diagnostics completed ==='
 
           } 2>&1 | tee "$LOG_FILE"
+
+      - name: SisteMatich UTF8 ZIP paketini olustur
+        script: |
+          set -e
+
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import plistlib
+          import stat
+          import sys
+          import zipfile
+
+          root = pathlib.Path(os.environ['CM_BUILD_DIR'])
+          app = pathlib.Path(
+              (root / 'build_logs' / 'app-path.txt').read_text().strip()
+          )
+          output = root / 'SisteMatich_iOS_Simulator_18_UTF8.zip'
+
+          if not app.is_dir():
+              sys.exit('App bundle not found')
+
+          info = plistlib.loads((app / 'Info.plist').read_bytes())
+          executable = info['CFBundleExecutable']
+
+          if not (app / executable).is_file():
+              sys.exit('Main executable missing')
+
+          main_id = info['CFBundleIdentifier']
+
+          watch_plists = (
+              list((app / 'Watch').glob('*.app/Info.plist'))
+              if (app / 'Watch').is_dir()
+              else []
+          )
+
+          for p in watch_plists:
+              companion = plistlib.loads(
+                  p.read_bytes()
+              ).get('WKCompanionAppBundleIdentifier')
+
+              if companion != main_id:
+                  sys.exit(
+                      f'Watch Companion mismatch: '
+                      f'{p} {companion} != {main_id}'
+                  )
+
+          def add_entry(zf, path):
+              rel = path.relative_to(app.parent).as_posix()
+              st = path.lstat()
+              is_dir = path.is_dir() and not path.is_symlink()
+
+              if is_dir:
+                  rel += '/'
+
+              zi = zipfile.ZipInfo(rel)
+              zi.create_system = 3
+              zi.external_attr = (st.st_mode & 0xFFFF) << 16
+              zi.compress_type = zipfile.ZIP_DEFLATED
+              zi.flag_bits |= 0x800
+
+              if is_dir:
+                  zi.external_attr |= 0x10
+                  zf.writestr(zi, b'')
+
+              elif path.is_symlink():
+                  zf.writestr(
+                      zi,
+                      os.readlink(path).encode('utf-8')
+                  )
+
+              else:
+                  with path.open('rb') as src, zf.open(zi, 'w') as dst:
+                      while True:
+                          buf = src.read(1024 * 1024)
+                          if not buf:
+                              break
+                          dst.write(buf)
+
+          with zipfile.ZipFile(
+              output, 'w', allowZip64=True
+          ) as zf:
+              add_entry(zf, app)
+
+              for directory, dirs, files in os.walk(
+                  app, followlinks=False
+              ):
+                  base = pathlib.Path(directory)
+
+                  for name in sorted(dirs):
+                      add_entry(zf, base / name)
+
+                  for name in sorted(files):
+                      add_entry(zf, base / name)
+
+          with zipfile.ZipFile(output) as zf:
+              names = zf.namelist()
+              exe_name = f'{app.name}/{executable}'
+
+              if exe_name not in names:
+                  sys.exit(
+                      f'Executable not present in ZIP: {exe_name}'
+                  )
+
+              mode = (
+                  zf.getinfo(exe_name).external_attr >> 16
+              )
+
+              if not (mode & stat.S_IXUSR):
+                  sys.exit(
+                      'Executable permissions missing in ZIP'
+                  )
+
+              if zf.testzip() is not None:
+                  sys.exit('ZIP CRC test failed')
+
+              print(
+                  f'ZIP: {output}, entries: {len(names)}, '
+                  f'executable: {exe_name}'
+              )
+              print(
+                  f'Main bundle ID: {main_id}, '
+                  f'Watch apps checked: {len(watch_plists)}'
+              )
+          PY
+
+      - name: SisteMatich derleme sonucunu kontrol et
+        script: |
+          set -e
+
+          test -s "$CM_BUILD_DIR/SisteMatich_iOS_Simulator_18_UTF8.zip"
+          test -s "$CM_BUILD_DIR/build_logs/app-group-analysis.log"
+
+          ls -lh \
+            "$CM_BUILD_DIR/SisteMatich_iOS_Simulator_18_UTF8.zip"
+
+          echo 'SisteMatich simulator build and diagnostics completed'
+
+    artifacts:
+      - '$CM_BUILD_DIR/SisteMatich_iOS_Simulator_18_UTF8.zip'
+      - '$CM_BUILD_DIR/build_logs/*.log'
+      - '$CM_BUILD_DIR/build_logs/app-path.txt'
+      - '$HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/Home Assistant Δ.app'
+      - '$HOME/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog'
